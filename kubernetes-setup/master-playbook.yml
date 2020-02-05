@@ -53,21 +53,13 @@
         user:
           name: vagrant
           group: docker
+          password: "/KdOd.tyUoC8Y"
 
       ##################################
       # 
       # Step 2: Kubelet will not start if the system has swap enabled, so we are disabling swap using the below code.
       #
       ##################################
-      - name: Remove swapfile from /etc/fstab
-        mount:
-          name: "{{ item }}"
-          fstype: swap
-          state: absent
-        with_items:
-            - swap
-            - none
-
       - name: Disable swap
         command: swapoff -a
         when: ansible_swaptotal_mb > 0
@@ -100,11 +92,6 @@
             - kubeadm 
             - kubectl
 
-#      - name: Configure node ip
-#        lineinfile:
-#          path: /etc/default/kubelet
-#          line: KUBELET_EXTRA_ARGS=--node-ip={{ node_ip }}
-
       - name: Restart kubelet
         service:
           name: kubelet
@@ -117,19 +104,33 @@
       #
       ##################################
       - name: Initialize the Kubernetes cluster using kubeadm
-        command: kubeadm init --apiserver-advertise-address="192.168.50.10" --apiserver-cert-extra-sans="192.168.50.10"  --node-name k8s-master --pod-network-cidr=192.168.0.0/16
+        command: kubeadm init --apiserver-advertise-address="192.168.50.10" --apiserver-cert-extra-sans="192.168.50.10"  --node-name master --pod-network-cidr=192.168.0.0/16
+        # when: installed is changed
 
       ##################################
       #
       # Step 5: Setup the kube config file for the vagrant user to access the Kubernetes cluster using the below code.
       #
       ##################################
-      - name: Setup kubeconfig for vagrant user
-        command: "{{ item }}"
-        with_items:
-        - mkdir -p /home/vagrant/.kube
-        - cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
-        - chown vagrant:vagrant /home/vagrant/.kube/config
+      - name: Create .kube folder
+        become: false
+        file:
+          path: /home/vagrant/.kube
+          state: directory
+
+      - name: Copy admin.conf file
+        copy: remote_src=True src=/etc/kubernetes/admin.conf dest=/home/vagrant/.kube/config
+      
+      - name: get master k8s config
+        command: echo /home/vagrant/.kube/config
+        register: kube_configuration
+      
+      - name: Copy master config local file
+        copy: 
+          dest: "config" 
+          content: "{{ kube_configuration }}"
+        become: false
+        delegate_to: localhost
 
       ##################################
       #
@@ -138,7 +139,7 @@
       ##################################
       - name: Install calico pod network
         become: false
-        command: kubectl create -f https://docs.projectcalico.org/v3.10/getting-started/kubernetes/installation/hosted/calico.yaml
+        command: kubectl apply -f https://docs.projectcalico.org/v3.10/manifests/calico.yaml
 
       ##################################
       #
@@ -150,9 +151,12 @@
         register: join_command
 
       - name: Copy join command to local file
+        copy: 
+          dest: "join" 
+          content: "{{ join_command.stdout_lines[0] }}"
         become: false
-        local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="/tmp/join-command"
-      
+        delegate_to: localhost
+
       ##################################
       #
       # Step 8: Setup a handler for checking Docker daemon using the below code.
