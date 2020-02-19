@@ -18,4 +18,4 @@ spec:
     # but the IP address of the `minikube ip` command. You will need to
     # grant access to the `minikube ip` IP address.
     server: 172.20.10.6
-    path: '/Users/Shared'
+    path: '/'

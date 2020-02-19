@@ -16,4 +16,11 @@ copy the resulting directory to you home
 
 should return the nodes in the kubenettes cluster.
 
+If the above doesn't work then you need to login to the master and copy the config to your local machine.
+
+> vagrant ssh master
+> less ~/.kube/confg
+
+copy the content of this file to your local ~/.kube/config file.
+
 install the kubernetes cluster ui (https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/)
